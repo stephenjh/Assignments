@@ -22,12 +22,17 @@ app = FastAPI(title="Headline Sentiment API")
 
 
 class HeadlinesRequest(BaseModel):
+    """Request payload containing headlines to score."""
+
     headlines: List[str] = Field(..., description="List of headlines to score")
 
 
 class Predictor(Protocol):
-    def predict(self, X: Any) -> Sequence[str] | Sequence[int]:
-        ...
+    """Protocol for classifier-like predictors."""
+
+    def predict(self, features: Any) -> Sequence[str] | Sequence[int]:
+        """Return predictions for the provided feature matrix."""
+        raise NotImplementedError
 
 
 def _load_model() -> tuple[Predictor, SentenceTransformer]:
@@ -74,7 +79,9 @@ def score_headlines(payload: HeadlinesRequest) -> dict[str, list[str | int]]:
         predictions = CLASSIFIER.predict(embeddings)
     except Exception as exc:
         logger.error("Failed to score headlines: %s", exc, exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to score headlines") from exc
+        raise HTTPException(
+            status_code=500, detail="Failed to score headlines"
+        ) from exc
 
     return {"labels": list(predictions)}
 
