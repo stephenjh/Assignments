@@ -50,7 +50,7 @@ def _load_model() -> tuple[Predictor, SentenceTransformer]:
 try:
     CLASSIFIER, ENCODER = _load_model()
     logger.info("Loaded sentiment model and encoder")
-except Exception:  # pragma: no cover - fail fast on startup
+except Exception:
     logger.exception("Failed to load model artifacts")
     raise
 
