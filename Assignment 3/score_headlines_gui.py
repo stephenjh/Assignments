@@ -1,177 +1,96 @@
-"""Streamlit UI for scoring news headlines with the assignment 2 API."""
+"""Streamlit UI for scoring headlines with the Assignment 2 API."""
 
 from __future__ import annotations
 
 import json
 import os
-from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 import streamlit as st
 
-DEFAULT_API_URL = os.getenv("HEADLINE_API_URL", "http://127.0.0.1:8081")
-DEFAULT_TIMEOUT_SECONDS = 20
+API_URL = os.getenv("HEADLINE_API_URL", "http://127.0.0.1:8081")
+TIMEOUT_SECONDS = 20
+
+st.set_page_config(page_title="Headline Scoring", layout="wide")
 
 
-st.set_page_config(page_title="Headline Scoring", page_icon="📰", layout="wide")
-
-
-def call_score_api(
-    api_base_url: str, headlines: list[str], request_timeout_seconds: int
-) -> list[Any]:
-    """Call the FastAPI service and return the list of labels."""
-    endpoint = f"{api_base_url.rstrip('/')}/score_headlines"
-    payload = {"headlines": headlines}
-    body = json.dumps(payload).encode("utf-8")
-
-    request = Request(
+def call_score_api(headlines: list[str]) -> list[str | int]:
+    endpoint = f"{API_URL.rstrip('/')}/score_headlines"
+    req = Request(
         endpoint,
-        data=body,
+        data=json.dumps({"headlines": headlines}).encode("utf-8"),
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-
     try:
-        with urlopen(request, timeout=request_timeout_seconds) as response:
-            response_body = response.read().decode("utf-8")
-            parsed_response = json.loads(response_body)
+        with urlopen(req, timeout=TIMEOUT_SECONDS) as res:
+            labels = json.loads(res.read().decode("utf-8")).get("labels")
     except HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"API returned HTTP {exc.code}: {detail}") from exc
+        raise RuntimeError(f"API returned HTTP {exc.code}: {exc.read().decode('utf-8', errors='replace')}") from exc
     except URLError as exc:
         raise RuntimeError(f"Unable to reach API at {endpoint}: {exc.reason}") from exc
-
-    response_labels = parsed_response.get("labels")
-    if not isinstance(response_labels, list):
+    if not isinstance(labels, list):
         raise RuntimeError("API response missing 'labels' list")
-
-    return response_labels
-
-
-def initialize_state() -> None:
-    """Create initial session state values."""
-    if "headlines" not in st.session_state:
-        st.session_state.headlines = [
-            "Tech stocks rally as AI demand grows",
-            "Oil prices fall after weak global demand report",
-            "Retail sales beat expectations in January",
-        ]
+    return labels
 
 
-def cleaned_headlines_with_index(
-    raw_headlines: list[str],
-) -> tuple[list[int], list[str]]:
-    """Return (indexes, cleaned_headlines) while preserving original order."""
-    indexes: list[int] = []
-    cleaned_headlines: list[str] = []
-
-    for original_idx, value in enumerate(raw_headlines):
-        trimmed_value = value.strip()
-        if trimmed_value:
-            indexes.append(original_idx)
-            cleaned_headlines.append(trimmed_value)
-
-    return indexes, cleaned_headlines
-
-
-initialize_state()
+if "headlines" not in st.session_state:
+    st.session_state.headlines = [""]
+if "ui_version" not in st.session_state:
+    st.session_state.ui_version = 0
 
 st.title("Headline Sentiment Scoring")
-st.caption(
-    "Edit headlines, remove lines, then score them against your Assignment 2 API."
-)
+st.caption("Edit headlines, add lines, then score them.")
 
-with st.sidebar:
-    st.header("API Settings")
-    api_url = st.text_input("Base URL", value=DEFAULT_API_URL)
-    timeout_seconds = st.number_input(
-        "Timeout (seconds)", min_value=1, max_value=120, value=DEFAULT_TIMEOUT_SECONDS
-    )
-    st.markdown("Run Streamlit on a 9081 port")
-
-st.subheader("Headlines")
-control_col_1, control_col_2, control_col_3 = st.columns(3)
-
-if control_col_1.button("Add Headline"):
+if st.button("Add Headline"):
     st.session_state.headlines.append("")
+    st.session_state.ui_version += 1
+    st.rerun()
 
-if control_col_2.button("Remove Empty"):
-    st.session_state.headlines = [h for h in st.session_state.headlines if h.strip()]
-
-if control_col_3.button("Clear All"):
-    st.session_state.headlines = [""]
-
-with st.expander("Bulk Paste Headlines", expanded=False):
-    bulk_text = st.text_area(
-        "Paste one headline per line",
-        placeholder=(
-            "Example:\nFed signals rates may stay higher\n"
-            "Company X beats earnings forecasts"
-        ),
-    )
+with st.expander("Bulk Paste Headlines"):
+    bulk_text = st.text_area("Paste one headline per line")
     if st.button("Load Pasted Lines"):
-        parsed_lines = [line.strip() for line in bulk_text.splitlines() if line.strip()]
-        if parsed_lines:
-            st.session_state.headlines = parsed_lines
-            st.success(f"Loaded {len(parsed_lines)} headlines.")
+        lines = [line.strip() for line in bulk_text.splitlines() if line.strip()]
+        if lines:
+            st.session_state.headlines = lines
+            st.session_state.ui_version += 1
+            st.rerun()
         else:
             st.warning("No non-empty lines found.")
 
 row_to_delete: int | None = None
-for idx, current_headline in enumerate(st.session_state.headlines):
-    editor_col, delete_col = st.columns([10, 1])
-    key = f"headline_input_{idx}"
-    new_value = editor_col.text_input(
-        f"Headline {idx + 1}",
-        value=current_headline,
-        key=key,
-        label_visibility="visible",
-    )
-
-    if new_value != current_headline:
-        st.session_state.headlines[idx] = new_value
-
-    if delete_col.button("Delete", key=f"delete_{idx}"):
-        row_to_delete = idx
+for i, headline in enumerate(st.session_state.headlines):
+    left, right = st.columns([10, 1])
+    key = f"headline_{st.session_state.ui_version}_{i}"
+    if key not in st.session_state:
+        st.session_state[key] = headline
+    st.session_state.headlines[i] = left.text_input(f"Headline {i + 1}", key=key)
+    if right.button("Delete", key=f"delete_{i}"):
+        row_to_delete = i
 
 if row_to_delete is not None:
     st.session_state.headlines.pop(row_to_delete)
     if not st.session_state.headlines:
         st.session_state.headlines = [""]
+    st.session_state.ui_version += 1
     st.rerun()
 
-score_clicked = st.button("Score Headlines", type="primary")
-
-if score_clicked:
-    keep_indexes, cleaned = cleaned_headlines_with_index(st.session_state.headlines)
-
+if st.button("Score Headlines", type="primary"):
+    cleaned = [h.strip() for h in st.session_state.headlines if h.strip()]
     if not cleaned:
-        st.error("Add at least one non-empty headline before scoring.")
+        st.error("Add at least one headline before scoring.")
     else:
         with st.spinner("Calling scoring API..."):
             try:
-                labels = call_score_api(api_url, cleaned, int(timeout_seconds))
+                labels = call_score_api(cleaned)
             except RuntimeError as exc:
                 st.error(str(exc))
             else:
-                if len(labels) != len(cleaned):
-                    st.error(
-                        "API returned a different number of labels than "
-                        "headlines. Check your server implementation."
-                    )
-                else:
-                    label_by_index = dict(zip(keep_indexes, labels, strict=False))
-
-                    result_rows = []
-                    for i, headline in enumerate(st.session_state.headlines):
-                        stripped = headline.strip()
-                        result_rows.append(
-                            {
-                                "headline": stripped if stripped else "(empty)",
-                                "label": label_by_index.get(i, "n/a"),
-                            }
-                        )
-
-                    st.success("Scoring complete.")
-                    st.dataframe(result_rows, use_container_width=True)
+                st.dataframe(
+                    [
+                        {"headline": h, "label": labels[i] if i < len(labels) else "n/a"}
+                        for i, h in enumerate(cleaned)
+                    ],
+                    use_container_width=True,
+                )
