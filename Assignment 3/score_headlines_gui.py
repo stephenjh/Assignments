@@ -16,6 +16,7 @@ st.set_page_config(page_title="Headline Scoring", layout="wide")
 
 
 def call_score_api(headlines: list[str]) -> list[str | int]:
+    """Send headlines to the Assignment 2 API and return predicted labels."""
     endpoint = f"{API_URL.rstrip('/')}/score_headlines"
     req = Request(
         endpoint,
@@ -25,14 +26,16 @@ def call_score_api(headlines: list[str]) -> list[str | int]:
     )
     try:
         with urlopen(req, timeout=TIMEOUT_SECONDS) as res:
-            labels = json.loads(res.read().decode("utf-8")).get("labels")
+            response_labels = json.loads(res.read().decode("utf-8")).get("labels")
     except HTTPError as exc:
-        raise RuntimeError(f"API returned HTTP {exc.code}: {exc.read().decode('utf-8', errors='replace')}") from exc
+        raise RuntimeError(
+            f"API returned HTTP {exc.code}: {exc.read().decode('utf-8', errors='replace')}"
+        ) from exc
     except URLError as exc:
         raise RuntimeError(f"Unable to reach API at {endpoint}: {exc.reason}") from exc
-    if not isinstance(labels, list):
+    if not isinstance(response_labels, list):
         raise RuntimeError("API response missing 'labels' list")
-    return labels
+    return response_labels
 
 
 if "headlines" not in st.session_state:
@@ -89,7 +92,10 @@ if st.button("Score Headlines", type="primary"):
             else:
                 st.dataframe(
                     [
-                        {"headline": h, "label": labels[i] if i < len(labels) else "n/a"}
+                        {
+                            "headline": h,
+                            "label": labels[i] if i < len(labels) else "n/a",
+                        }
                         for i, h in enumerate(cleaned)
                     ],
                     use_container_width=True,
