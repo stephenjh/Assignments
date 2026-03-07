@@ -2,16 +2,20 @@
 This repository exists to serve as an example for the CD part of CI/CD.
 
 ### CI
--Remove docstring from tests/ to make pylint break
-
--In app.py, replace os.path.join with os.join to break mypy
-
--To deploy, either push to `prod` branch or open a pull request to merge `main` to `prod`
+- Push to `main` to run checks (pytest, mypy, pylint).
+- Checks are scoped to `assignment4` in this monorepo.
 
 ### CD
-- In repo "settings", edit "Secrets and variables" to add new variables
-    - secrets.SERVER_HOST
-    - secrets.SERVER_USER
-    - secrets.SERVER_SSH_KEY # Generate public key on remote server via `ssh-keygen -t ed25519 -C "user@email.com"`
-    - vars.DOCKER_USERNAME
+- Merge and push to `prod` to trigger deploy.
+- In repo settings, add the following GitHub Actions secrets:
+  - `DOCKERHUB_USERNAME`
+  - `DOCKERHUB_TOKEN`
+  - `SERVER_HOST`
+  - `SERVER_USER`
+  - `SERVER_PORT` (optional, defaults to 22)
+  - `SERVER_SSH_KEY` (new key pair for GitHub Actions only)
+- Optional variable:
+  - `DOCKER_IMAGE` (defaults to `mleng-sayhi`)
 
+Deployment pulls your image and runs:
+`docker run --name mleng-sayhi --rm -v /opt/assignment_outputs:/app/data <image>:latest`
