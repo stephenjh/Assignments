@@ -19,3 +19,4 @@ This repository exists to serve as an example for the CD part of CI/CD.
 
 Deployment pulls your image and runs:
 `docker run --name mleng-sayhi --rm -v /opt/assignment_outputs:/app/data <image>:latest`
+cd trigger Sat Mar  7 12:46:34 CST 2026
