@@ -88,6 +88,7 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT != '' && secrets.SERVER_PORT || '22' }}
           script: |
+            echo "Deploy image: [${{ needs.build_and_push.outputs.image_name }}:latest]"
             docker pull ${{ needs.build_and_push.outputs.image_name }}:latest
             docker rm -f mleng-sayhi || true
             docker run --name mleng-sayhi --rm -v /opt/assignment_outputs:/app/data ${{ needs.build_and_push.outputs.image_name }}:latest
